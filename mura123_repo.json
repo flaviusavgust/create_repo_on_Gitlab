@@ -1,0 +1,88 @@
+token_gitlab = str("ut6x1UjRLBEqvNuvSYJT")
+
+
+path_git = str(input("Give me path: "))
+repo_name = str(input("Give me repo name: "))
+target = str(input("What do you want:" ))
+
+def check_input():
+    inputs = [path_git, repo_name, target]
+
+    for inp in inputs:
+        assert inp != ''
+        assert inp != ' '
+        assert inp != None
+
+
+check_input()
+
+
+
+
+
+
+
+
+def execute_bash(command):
+    try:
+        return os.system(command)
+    except Exception:
+        print(traceback.format_exc())
+
+
+#Exception handling to make sure the modules are installed. 
+# Otherwise it will install system wide. 
+try:
+    import requests
+except Exception:
+    execute_bash("sudo pip3 install requests")
+try:
+    import gitlab
+except Exception:
+    execute_bash("sudo pip3 install python-gitlab")
+
+
+#URLs( Local Gitlab )
+GITLAB_URL = "https://gitlab-digital.tele2.kz/"
+
+
+
+def fetch_repos(username, password, gl):
+    """
+        - Fetch list of cloning Urls.
+        - Clone repositories into local machine as a mirror.
+        - Create local repositories in Gitlab server.
+        - Fetch repo urls of local gitlab.
+        - Push cloned repositories to local Gitlab server.
+    """
+    try:
+        #Fetch urls from GitLAB API REST.
+        r = requests.get(GITLAB_URL, auth = (username,password))
+        clone_urls = {}
+        
+        #Selecting 15 repositories only out of 30 fetch.
+        for item in r.json()['items'][:15]:
+            clone_urls[item['name']] = item['clone_url']
+
+        #Cloning.
+        for item in clone_urls:
+            execute_bash("git clone " + clone_urls[item])
+
+        #Create and push into gitlab server.
+        for item in clone_urls:
+            print('\033[1;35mChangin Directory to: %s\033[1;m' %(item))
+            os.chdir(item)      #Going into directory of current repo.
+            repo = gl.projects.create({"name":item,"visibility":"public"})
+            repo.save()
+            url = repo.attributes['http_url_to_repo'].replace("gitlab.example.com", "localhost")
+            execute_bash("git remote add gitlab " + url)
+            execute_bash("git add --all")
+            execute_bash("git commit -m 'Transferring from Github to Gitlab.'")
+            execute_bash("git push gitlab") 
+            print('\033[1;35mChanging back directory to root..\033[1;m')
+            os.chdir("..")      #Changin back to one level up in order to go into next REPO_DIR.
+
+        print('\033[1;35m...Completed mirroring repositories via local machine.\033[1;m')
+        sys.exit(0)
+    except Exception:
+        print(traceback.format_exc())    
